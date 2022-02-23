@@ -1,4 +1,5 @@
 #pragma clang diagnostic push
+#pragma ide diagnostic ignored "EndlessLoop"
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 #define hard_reset() __asm__("move   #0x2700,%sr\n\t" \
                              "move.l (0),%a7\n\t"     \
@@ -7,28 +8,28 @@
 #define enable_ints __asm__("move #0x2500,%sr")
 #define disable_ints __asm__("move #0x2700,%sr")
 
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
 
-#include "vdp.h"
+#include "common.h"
+
 #include "joy.h"
+#include "string.h"
+#include "res_generated.h"
 
 extern const char WORDS[12947][5];
 extern const uint16_t WORDLE_WORDS[];
-extern const uint32_t TILES[];
+
 
 extern const uint32_t FONT_TILES[];
 extern const uint16_t WORD_OFFSETS[];
 
-char buf[6];
 
 int message_time;
 
 uint16_t joystate = ~0, oldstate;
 
 VDPSprite sprites[80];
+
+char check_result[5];
 
 const char *kbRows[3] = {
         "QWERTYUIOP",
@@ -37,34 +38,13 @@ const char *kbRows[3] = {
 };
 
 uint8_t kbState[26];
+int cursor_row = 0, cursor_col = 0;
 
 int current_word;
 
 char guess[6][5];
-int cur_guess = 0;
+int8_t cur_guess = 0;
 int guess_x = 0;
-
-int cursor_row = 0, cursor_col = 0;
-
-void font_sprite(VDPSprite *sprite, char letter, int x, int y) {
-    sprite->attr = TILE_USERINDEX + 4 + 9 * 4 + (letter - 'A') * 4;
-    sprite_pos(*sprite, x, y);
-    sprite_size(*sprite, 2, 2);
-}
-
-void draw_tile(int x, int y, int t) {
-    int st = TILE_USERINDEX + 4 + t * 9;
-
-    for (int i = 0; i < 3; i++) {
-        vdp_map_xy(VDP_PLAN_B, st, x, y);
-        st++;
-        vdp_map_xy(VDP_PLAN_B, st, x, y + 1);
-        st++;
-        vdp_map_xy(VDP_PLAN_B, st, x, y + 2);
-        st++;
-        x++;
-    }
-}
 
 int words_equal(const char *g, const char *word) {
     for (int i = 0; i < 5; i++) {
@@ -93,8 +73,6 @@ int is_valid_guess(const char *g) {
     }
 }
 
-
-char check_result[5];
 
 int check_guess() {
     uint8_t checked = 0;
@@ -147,33 +125,55 @@ void set_key_state(int k, uint8_t state) {
     }
 }
 
-void clear_message() {
-    vdp_map_fill_rect(VDP_PLAN_W, 0, 0, 20, 40, 1, 0);
+void message_clear() {
+    vdp_map_fill_rect(VDP_PLAN_A, 0, 0, 19, 40, 1, 0);
 }
 
-void draw_message(const char *message) {
+void message_draw(const char *message) {
+    int l = strlen(message);
+
     message_time = 120;
-    vdp_puts(VDP_PLAN_B, message, 16, 20);
+//    vdp_map_fill_rect(VDP_PLAN_A, 31, 20 - ((l + 4) >> 1), 8, l + 4, 3, 0);
+
+    vdp_puts(VDP_PLAN_A, message, 20 - (l >> 1), 19);
+}
+
+
+void add_letter_to_guess(char ch) {
+    int y = 4; //todo
+
+    if (guess_x == 5)
+        return;
+
+    guess[cur_guess][guess_x] = ch;
+
+    VDPSprite *s = letter_sprite(cur_guess, guess_x);
+    set_letter_sprite_location(s, cur_guess, guess_x);
+
+    font_sprite(s, ch, 100 + guess_x * 24, y + cur_guess * 24, 0);
+
+    guess_x++;
 }
 
 void enter_guess() {
+
+    if(is_animating_guess || is_animating_invalid_word)
+        return;
 
     if (guess_x != 5)
         return;
 
     if (!is_valid_guess(&guess[cur_guess][0])) {
-
-        draw_message("Not a valid word");
+        message_draw("Not a valid word");
+        animate_invalid_word(cur_guess);
         return;
     }
 
     int accepted = check_guess();
 
-    for (int i = 0; i < 5; i++) {
-        draw_tile(12 + i * 3, cur_guess * 3, check_result[i]);
-    }
-
     if (accepted) {
+        animate_guess(cur_guess);
+
         for (int i = 0; i < 5; i++) {
             int ch = guess[cur_guess][i] - 'A';
             set_key_state(ch, check_result[i] + 1);
@@ -192,7 +192,6 @@ int GameScreen() {
     current_word = WORDLE_WORDS[rand() % 2315];
 
     vdp_vsync();
-    vdp_tiles_load(&TILES[0], TILE_USERINDEX, 4 + 4 * 9 + 26 * 4);
 
     VDPSprite *cursor_sprite = &sprites[30];
 
@@ -200,15 +199,21 @@ int GameScreen() {
 
 //    draw_tile(12, 0, 0);
 
-    cursor_sprite->attr = TILE_USERINDEX;
+    cursor_sprite->attr = tiles_cursor;
     sprite_pos(*cursor_sprite, cursor_x, 64 + 8);
     sprite_size(*cursor_sprite, 2, 2);
 
     for (int j = 0; j < 6; j++) {
         for (int i = 0; i < 5; i++) {
-            draw_tile(12 + i * 3, j * 3, 3);
+            draw_tile(12 + i * 3, j * 3, 3, 0);
         }
     }
+
+    add_letter_to_guess('C');
+    add_letter_to_guess('R');
+    add_letter_to_guess('A');
+    add_letter_to_guess('N');
+    add_letter_to_guess('E');
 
     while (true) {
         joy_update();
@@ -241,19 +246,13 @@ int GameScreen() {
                 guess_x--;
                 guess[cur_guess][guess_x] = 0;
                 VDPSprite *s = &sprites[guess_x + cur_guess * 5];
-                font_sprite(s, 0, 100 + guess_x * 24, y + cur_guess * 24);
+                font_sprite(s, 0, 100 + guess_x * 24, y + cur_guess * 24, 0);
             }
         }
 
         if ((joystate & BUTTON_C) && !(oldstate & BUTTON_C)) {
-            if (guess_x < 5) {
-                char ch = kbRows[cursor_row][cursor_col];
-                guess[cur_guess][guess_x] = ch;
-                VDPSprite *s = &sprites[guess_x + cur_guess * 5];
-                font_sprite(s, ch, 100 + guess_x * 24, y + cur_guess * 24);
-
-                guess_x++;
-            }
+            char ch = kbRows[cursor_row][cursor_col];
+            add_letter_to_guess(ch);
         }
 
         for (int row = 0; row < 3; row++) {
@@ -264,20 +263,29 @@ int GameScreen() {
             }
         }
 
-        if(message_time) {
-            message_time --;
-            if(message_time == 0) {
-                clear_message();
+        if (message_time) {
+            message_time--;
+            if (message_time == 0) {
+                message_clear();
             }
+        }
+
+        if (is_animating_invalid_word) {
+            update_invalid_word_animation();
+        }
+
+        if (is_animating_guess) {
+            update_guess_animation();
         }
 
         sprite_pos(*cursor_sprite, 84 + cursor_col * 16, 164 + cursor_row * 16);
 
-        vdp_sprites_add(sprites, 80);
+        for (int k = 0; k < 41; k++) vdp_sprite_add(&sprites[k]);
         vdp_sprites_update();
         vdp_vsync();
     }
 }
+
 
 int main() {
 
@@ -289,6 +297,10 @@ int main() {
     // orange tile: #b59f3a
 
 //	vdp_color(0, 0x080);
+    vdp_set_scrollmode(2, 0);
+    for (int i = 0; i < 32; i++) hscroll[i] = 0;
+    vdp_hscroll_tile(VDP_PLAN_B, hscroll);
+
     vdp_color(0, RGB24_TO_VDPCOLOR(0x121213)); // #
     vdp_color(1, RGB24_TO_VDPCOLOR(0));
     vdp_color(2, RGB24_TO_VDPCOLOR(0x3a3a3c));
@@ -302,7 +314,10 @@ int main() {
     vdp_color(32 + 15, RGB24_TO_VDPCOLOR(0xb59f3a)); // orange keyboard
 
     vdp_color(48 + 15, RGB24_TO_VDPCOLOR(0x538e4e)); // green keyboard
-    vdp_puts(VDP_PLAN_A, "Press START", 4, 4);
+
+    graphics_load();
+
+    vdp_puts(VDP_PLAN_A, "Press START", 8, 16);
 
     while (true) {
         rand();
@@ -311,10 +326,10 @@ int main() {
 
         oldstate = joystate;
         joystate = joy_get_state(JOY_1);
-//        GameScreen();
+        GameScreen();
 
         if ((joystate & BUTTON_START) && !(oldstate & BUTTON_START)) {
-            GameScreen();
+//            GameScreen();
         }
 
 
