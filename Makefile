@@ -42,9 +42,11 @@ OPTIONS  =
 ASFLAGS  = -m68000 --register-prefix-optional
 LDFLAGS  = -T $(MARSDEV)/ldscripts/md.ld -nostdlib
 
-CS    = $(wildcard src/*.c)
+PCM2EWF = tools/pcm2ewf/tools/pcm2ewf
+
+CS    = $(wildcard src/*.c src/echo/*.c)
 CPPS  = $(wildcard src/*.cpp)
-SS    = $(wildcard src/*.s)
+SS    = $(wildcard src/*.s res/*.s src/echo/*.s)
 OBJS  = $(CS:.c=.o)
 OBJS += $(CPPS:.cpp=.o)
 OBJS += $(SS:.s=.o)
@@ -52,6 +54,10 @@ OBJS += $(SS:.s=.o)
 ASMO  = $(RESS:.res=.o)
 ASMO += $(Z80S:.s80=.o)
 ASMO += $(CS:%.c=asmout/%.s)
+
+#RES_AUDIO=$(wildcard res/pcm/*)
+#RESS = $(RES_AUDIO)
+#OBJS+=$(RESS:.s=.o)
 
 .SECONDARY: out.elf
 
@@ -74,6 +80,13 @@ debug: out.bin symbol.txt
 # This generates a symbol table that is very helpful in debugging crashes,
 # even with an optimized release build!
 # Cross reference symbol.txt with the addresses displayed in the crash handler
+
+#res/click.ewf: $(PCM2EWF) res/click.raw
+#	$(PCM2EWF) res/echoblob.bin res/echoblob
+#
+#%.s: %.ewf
+#	cp %@ %<
+
 symbol.txt: out.bin
 	$(NM) --plugin=$(PLUGIN)/$(LTO_SO) -n out.elf > symbol.txt
 
@@ -107,6 +120,12 @@ asm-dir:
 
 asmout/%.s: %.c
 	$(CC) $(CCFLAGS) $(OPTIONS) $(INCS) -S $< -o $@
+
+bin:
+	mkdir -p bin
+
+$(PCM2EWF): bin
+	gcc tools/pcm2ewf/tool/main.c -std=c99 -o $@
 
 .PHONY: clean
 

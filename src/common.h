@@ -5,8 +5,8 @@
 #ifndef WORDLE_MD_COMMON_H
 #define WORDLE_MD_COMMON_H
 
+#include <stddef.h>
 #include <stdbool.h>
-//#include <stdlib.h>
 #include <stdint.h>
 #include "vdp.h"
 

@@ -11,9 +11,13 @@
 
 #include "common.h"
 
+#include "sound.h"
+
 #include "joy.h"
 #include "string.h"
 #include "res_generated.h"
+
+#include "echo/echo.h"
 
 extern const char WORDS[12947][5];
 extern const uint16_t WORDLE_WORDS[];
@@ -145,6 +149,8 @@ void add_letter_to_guess(char ch) {
     if (guess_x == 5)
         return;
 
+    sound_play_click();
+
     guess[cur_guess][guess_x] = ch;
 
     VDPSprite *s = letter_sprite(cur_guess, guess_x);
@@ -209,11 +215,11 @@ int GameScreen() {
         }
     }
 
-    add_letter_to_guess('C');
-    add_letter_to_guess('R');
-    add_letter_to_guess('A');
-    add_letter_to_guess('N');
-    add_letter_to_guess('E');
+//    add_letter_to_guess('C');
+//    add_letter_to_guess('R');
+//    add_letter_to_guess('A');
+//    add_letter_to_guess('N');
+//    add_letter_to_guess('E');
 
     while (true) {
         joy_update();
@@ -252,6 +258,7 @@ int GameScreen() {
 
         if ((joystate & BUTTON_C) && !(oldstate & BUTTON_C)) {
             char ch = kbRows[cursor_row][cursor_col];
+
             add_letter_to_guess(ch);
         }
 
@@ -292,6 +299,9 @@ int main() {
     vdp_init();
     joy_init();
     enable_ints;
+
+    sound_init();
+
     // gray tile : #3a3a3c
     // green tile: #538e4e
     // orange tile: #b59f3a
@@ -326,10 +336,10 @@ int main() {
 
         oldstate = joystate;
         joystate = joy_get_state(JOY_1);
-        GameScreen();
+//        GameScreen();
 
         if ((joystate & BUTTON_START) && !(oldstate & BUTTON_START)) {
-//            GameScreen();
+            GameScreen();
         }
 
 
