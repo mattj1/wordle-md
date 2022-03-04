@@ -3,7 +3,7 @@
 uint8_t is_animating_invalid_word;
 
 
-static u8 invalid_row, invalid_frame;
+static int invalid_row, invalid_frame;
 
 
 void update_invalid_word_animation() {
@@ -24,9 +24,7 @@ void update_invalid_word_animation() {
         hscroll[j + invalid_row * 3] = offset - 2;
     }
 
-    VDP_setHorizontalScrollTile(VDP_PLAN_A, 0, hscroll, 32, DMA_QUEUE);
-
-//    for(int k = 0; k < 41; k++) vdp_sprite_add(&sprites[k]);
+    VDP_setHorizontalScrollTile(BG_A, 0, hscroll, 32, DMA);
 
     if (invalid_frame == 24) {
         is_animating_invalid_word = 0;

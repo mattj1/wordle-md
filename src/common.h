@@ -10,13 +10,22 @@
 #define cursor_sprite 30
 
 extern const uint32_t TILES[];
+extern const char WORDS[];
 
 extern char guess[6][5];
 
 extern uint8_t is_animating_invalid_word, is_animating_guess;
 
-extern VDPSprite sprites[];
+#define GAME_STATE_GAME 0
+#define GAME_STATE_GAMEOVER 1
+
+extern int game_state;
+
 extern s16 hscroll[];
+
+void clear_screen();
+
+extern int current_word;
 
 extern int tiles_cursor;
 extern int tiles_word_tiles_filled;
@@ -53,23 +62,44 @@ void animate_guess(int row);
 
 void graphics_load();
 
+void cursor_show();
+void cursor_hide();
+
+void bottom_out();
+void bottom_in();
+
 void InstructionsScreen();
 void GameScreen();
 void TitleScreen();
 
 
-void GameOver_Start(bool didWin);
+void GameOver_Start(bool didWin, const char *message);
 void GameOver_Update();
 extern int is_animating_gameover;
 
-    extern uint16_t blackPal[];
+extern uint16_t blackPal[];
 extern uint16_t mainPal[];
 
-typedef void (*menu_item_func)(void);
-
-void menu_init();
-void menu_add(int x, int y, const char *label, menu_item_func func);
+void menu_init(VDPPlane plane);
+void menu_add(int x, int y, const char *label);
 void menu_draw();
 int menu_run();
+
+
+#define SCREEN_TITLE 0
+#define SCREEN_GAME 1
+#define SCREEN_INSTRUCTIONS 2
+#define SCREEN_NEWGAME 3
+
+extern int next_screen;
+
+
+void sound_init();
+void sound_play_click();
+void sound_play_flip();
+void sound_play_ui_click();
+void sound_play_ping();
+
+extern int cursorSpritePos[2];
 
 #endif //WORDLE_MD_COMMON_H

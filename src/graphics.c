@@ -11,6 +11,16 @@ uint16_t num_tiles_loaded = TILE_USERINDEX;
 
 s16 hscroll[32];
 
+void clear_screen() {
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+    for(int i = 0; i < MAX_VDP_SPRITE; i++) {
+        VDP_setSprite(i, 0, 0, SPRITE_SIZE(1, 1), 0);
+    }
+
+    VDP_updateSprites(0, DMA);
+}
+
 uint16_t load_tileset(tileset_t *tileset) {
     uint16_t start_tile = num_tiles_loaded;
     VDP_loadTileData(&TILES[tileset->start_tile * 8], start_tile, tileset->num_tiles, DMA_QUEUE);
@@ -69,4 +79,33 @@ void graphics_load() {
     tiles_word_tiles_outline = load_tileset(&tile_sets[TILESET_WORD_TILES_OUTLINE]);
     tiles_large_font = load_tileset(&tile_sets[TILESET_LARGE_FONT]);
     tiles_misc = load_tileset(&tile_sets[TILESET_MISC]);
+}
+
+void cursor_show() {
+    VDP_setSprite(cursor_sprite, cursorSpritePos[0], cursorSpritePos[1], SPRITE_SIZE(2,2), TILE_ATTR_FULL(0, 0, 0, 0, tiles_cursor));
+}
+
+void cursor_hide() {
+    VDP_setSprite(cursor_sprite, 0,0, SPRITE_SIZE(1,1), TILE_ATTR_FULL(0, 0, 0, 0, 0));
+}
+
+void bottom_out() {
+    for(int planeY = 0; planeY < 64; planeY += 8) {
+        VDP_setVerticalScroll(BG_B, -planeY);
+        VDP_setSpritePosition(cursor_sprite, cursorSpritePos[0], cursorSpritePos[1] + planeY);
+        VDP_updateSprites(42, DMA);
+        SYS_doVBlankProcess();
+    }
+
+    cursor_hide();
+    VDP_clearTextAreaBG(BG_B, 0,20,40,8);
+}
+
+void bottom_in() {
+    for(int planeY = 64; planeY >= 0; planeY -= 8) {
+        VDP_setVerticalScroll(BG_B, -planeY);
+        VDP_setSpritePosition(cursor_sprite, cursorSpritePos[0], cursorSpritePos[1] + planeY);
+        VDP_updateSprites(42, DMA);
+        SYS_doVBlankProcess();
+    }
 }

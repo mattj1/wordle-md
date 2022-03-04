@@ -5,24 +5,26 @@ typedef struct menu_item_s menu_item_t;
 
 static int num_items, selected_item;
 
+static VDPPlane plane;
+
 struct menu_item_s {
     int x;
     int y;
     const char *label;
-    menu_item_func func;
 };
 
 #define MAX_MENU_ITEMS 3
 
 menu_item_t menu_items[MAX_MENU_ITEMS];
 
-void menu_init() {
+void menu_init(VDPPlane p) {
     memset(menu_items, 0, sizeof(menu_items));
     num_items = 0;
     selected_item = 0;
+    plane = p;
 }
 
-void menu_add(int x, int y, const char *label, menu_item_func func) {
+void menu_add(int x, int y, const char *label) {
     if(num_items == MAX_MENU_ITEMS)
         return;
 
@@ -31,14 +33,13 @@ void menu_add(int x, int y, const char *label, menu_item_func func) {
     item->x = x;
     item->y = y;
     item->label = label;
-    item->func = func;
 }
 
 void menu_draw() {
     for(int i = 0; i < num_items; i++) {
         menu_item_t *item = &menu_items[i];
-        VDP_drawTextBG(VDP_PLAN_A, item->label, item->x, item->y);
-        VDP_drawTextBG(VDP_PLAN_A, selected_item == i ? ">" : " ", item->x - 2, item->y);
+        VDP_drawTextBG(plane, item->label, item->x, item->y);
+        VDP_drawTextBG(plane, selected_item == i ? ">" : " ", item->x - 2, item->y);
     }
 }
 
@@ -57,22 +58,34 @@ int menu_run() {
         if ((joystate & BUTTON_UP) && !(oldstate & BUTTON_UP)) {
             if(selected_item > 0) {
                 selected_item --;
+                sound_play_ui_click();
                 menu_draw();
             }
         }
 
         if ((joystate & BUTTON_DOWN) && !(oldstate & BUTTON_DOWN)) {
-
             if(selected_item < num_items - 1) {
                 selected_item ++;
+                sound_play_ui_click();
                 menu_draw();
             }
         }
 
         if ((joystate & BUTTON_START) && !(oldstate & BUTTON_START)) {
-            return selected_item;
+            break;
         }
 
-        VDP_waitVSync();
+        if ((joystate & BUTTON_A) && !(oldstate & BUTTON_A)) {
+            break;
+        }
+
+        if ((joystate & BUTTON_C) && !(oldstate & BUTTON_C)) {
+            break;
+        }
+
+        SYS_doVBlankProcess();
     }
+
+    sound_play_ping();
+    return selected_item;
 }

@@ -8,28 +8,24 @@
 #define enable_ints __asm__("move #0x2500,%sr")
 #define disable_ints __asm__("move #0x2700,%sr")
 
-
 #include "common.h"
 #include "string.h"
 #include "res_generated.h"
 
-extern const char WORDS[12947][5];
+const char WORDS[64735]; //12947 * 5
 extern const uint16_t WORDLE_WORDS[];
 
 
 extern const uint32_t FONT_TILES[];
 extern const uint16_t WORD_OFFSETS[];
 
+int next_screen = SCREEN_TITLE;
 
 int message_time;
 
-#define GAME_STATE_GAME 0
-#define GAME_STATE_GAMEOVER 1
-int game_state = 0;
-
-uint16_t joystate = ~0, oldstate;
-
 char check_result[5];
+
+int cursorSpritePos[2];
 
 const char *kbRows[3] = {
         "QWERTYUIOP",
@@ -37,14 +33,14 @@ const char *kbRows[3] = {
         " ZXCVBNM  "
 };
 
-uint8_t kbState[26];
-int cursor_row = 0, cursor_col = 0;
+u8 kbState[26];
+int cursor_row, cursor_col;
+
+int game_state;
+char guess[6][5];
+int cur_guess, guess_x;
 
 int current_word;
-
-char guess[6][5];
-int8_t cur_guess = 0;
-int guess_x = 0;
 
 int words_equal(const char *g, const char *word) {
     for (int i = 0; i < 5; i++) {
@@ -58,7 +54,7 @@ int words_equal(const char *g, const char *word) {
 
 int is_valid_guess(const char *g) {
     int j = WORD_OFFSETS[g[0] - 'A'];
-    const char *word = &WORDS[j][0];
+    const char *word = &WORDS[j * 5];
     while (1) {
         if (g[0] != word[0]) {
             return 0;
@@ -72,20 +68,11 @@ int is_valid_guess(const char *g) {
     }
 }
 
-
 int check_guess() {
     u8 checked = 0;
 
-    const char *word = WORDS[current_word];
+    const char *word = &WORDS[current_word * 5];
     const char *g = &guess[cur_guess][0];
-
-//    vdp_puts(VDP_PLAN_A, "Check guess", 0, 0);
-//    sprintf(buf, "%c%c%c%c%c", word[0], word[1], word[2], word[3], word[4]);
-
-
-//    vdp_puts(VDP_PLAN_A, buf, 0, 1);
-//    sprintf(buf, "%c%c%c%c%c", g[0], g[1], g[2], g[3], g[4]);
-//    vdp_puts(VDP_PLAN_A, buf, 0, 2);
 
     // Check for correct letters
     for (int i = 0; i < 5; i++) {
@@ -126,16 +113,14 @@ void set_key_state(int k, uint8_t state) {
 }
 
 void message_clear() {
-    VDP_fillTileMapRect(VDP_PLAN_A, 0, 0, 19, 40, 1);
+    VDP_fillTileMapRect(BG_A, 0, 0, 19, 40, 1);
 }
 
 void message_draw(const char *message) {
     int l = strlen(message);
 
     message_time = 120;
-//    vdp_map_fill_rect(VDP_PLAN_A, 31, 20 - ((l + 4) >> 1), 8, l + 4, 3, 0);
-
-    VDP_drawTextBG(VDP_PLAN_A, message, 20 - (l >> 1), 19);
+    VDP_drawTextBG(BG_A, message, 20 - (l >> 1), 19);
 }
 
 
@@ -143,6 +128,8 @@ void add_letter_to_guess(char ch) {
 
     if (guess_x == 5)
         return;
+
+    sound_play_click();
 
     guess[cur_guess][guess_x] = ch;
 
@@ -169,23 +156,26 @@ void draw_keyboard() {
     }
 }
 
+
 void draw_cursor() {
-    VDP_setSpritePosition(cursor_sprite, 84 + cursor_col * 16, 164 + cursor_row * 16);
+    cursorSpritePos[0] = 84 + cursor_col * 16;
+    cursorSpritePos[1] = 164 + cursor_row * 16;
+
+    VDP_setSpritePosition(cursor_sprite, cursorSpritePos[0], cursorSpritePos[1]);
 }
 
 void enter_guess() {
-
     if(is_animating_guess || is_animating_invalid_word)
         return;
 
     if (guess_x != 5)
         return;
 
-//    if (!is_valid_guess(&guess[cur_guess][0])) {
-//        message_draw("Not a valid word");
-//        animate_invalid_word(cur_guess);
-//        return;
-//    }
+    if (!is_valid_guess(&guess[cur_guess][0])) {
+        message_draw("Not a valid word");
+        animate_invalid_word(cur_guess);
+        return;
+    }
 
     if(cur_guess == 0) {
         // Pick the word at this point, so it's likely to be very random
@@ -193,8 +183,11 @@ void enter_guess() {
     }
 
     if(check_guess()) {
-        game_state = GAME_STATE_GAMEOVER;
-        GameOver_Start(1);
+        GameOver_Start(1, "NICE");
+    } else {
+        if(cur_guess == 5)  {
+            GameOver_Start(0, "TOO BAD");
+        }
     }
 
     animate_guess(cur_guess);
@@ -291,30 +284,82 @@ void cursor_right() {
     }
 }
 
+
+void GameMenu() {
+    if(is_animating_invalid_word || is_animating_gameover || is_animating_guess)
+        return;
+
+    // TODO: remove cursor
+
+    bottom_out();
+
+    VDP_clearTextAreaBG(BG_B, 0,20,40,8);
+
+    menu_init(BG_B);
+    menu_add(16, 20, "Continue");
+    menu_add(16, 22, "Give Up");
+    menu_add(16, 24, "Quit");
+    menu_draw();
+
+    bottom_in();
+
+    int choice = menu_run();
+
+    switch(choice) {
+        case 0:
+            bottom_out();
+            draw_keyboard();
+            cursor_show();
+            bottom_in();
+            break;
+        case 1:
+            if(cur_guess == 0) {
+                // Pick a random word now... doesn't matter.
+                current_word = WORDLE_WORDS[random() % 2315];
+            }
+
+            GameOver_Start(0, "GAME OVER");
+            break;
+        case 2:
+            next_screen = SCREEN_TITLE;
+            break;
+        default:
+            break;
+    }
+}
+
 void GameScreen() {
-    PAL_fadeOutAll(15, 0);
 
-    int cursor_x = 0;
-    for (int i = 0; i < 26; i++) kbState[i] = 0;
+    clear_screen();
 
-    VDP_clearPlane(BG_A, 0);
-    VDP_clearPlane(BG_B, 0);
+    int cursor_x = 0, y = 4;
 
-    int y = 4;
+    u16 joystate = ~0, oldstate;
 
-    VDP_setSprite(cursor_sprite, cursor_x, 64 + 8, SPRITE_SIZE(2,2), TILE_ATTR_FULL(0, 0, 0, 0, tiles_cursor));
+    // Keyboard
+    cursor_row = cursor_col = 0;
+    memset(kbState, 0, sizeof(kbState));
+
+    // Game
+    game_state = GAME_STATE_GAME;
+    memset(guess, 0, sizeof(guess));
+    cur_guess = guess_x = 0;
+
+    VDP_linkSprites(0, 50);
+
+    cursor_show();
 
     for (int j = 0; j < 6; j++) {
         for (int i = 0; i < 5; i++) {
             draw_tile(12 + i * 3, j * 3, 3, 0, BG_A);
         }
     }
-
-    add_letter_to_guess('C');
-    add_letter_to_guess('R');
-    add_letter_to_guess('A');
-    add_letter_to_guess('N');
-    add_letter_to_guess('E');
+//
+//    add_letter_to_guess('C');
+//    add_letter_to_guess('R');
+//    add_letter_to_guess('A');
+//    add_letter_to_guess('N');
+//    add_letter_to_guess('E');
 
     draw_keyboard();
     draw_cursor();
@@ -368,24 +413,29 @@ void GameScreen() {
         }
 
 
-        if ((joystate & BUTTON_START) && !(oldstate & BUTTON_START)) {
-            enter_guess();
+        if(game_state != GAME_STATE_GAMEOVER) {
 
-        }
-
-        if ((joystate & BUTTON_B) && !(oldstate & BUTTON_B)) {
-            if (guess_x > 0) {
-                guess_x--;
-                guess[cur_guess][guess_x] = 0;
-                int s = guess_x + cur_guess * 5;
-                font_sprite(s, 0, 100 + guess_x * 24, y + cur_guess * 24, 0);
+            if ((joystate & BUTTON_A) && !(oldstate & BUTTON_A)) {
+                GameMenu();
             }
-        }
 
-        if ((joystate & BUTTON_C) && !(oldstate & BUTTON_C)) {
-            char ch = kbRows[cursor_row][cursor_col];
+            if ((joystate & BUTTON_B) && !(oldstate & BUTTON_B)) {
+                if (guess_x > 0) {
+                    guess_x--;
+                    guess[cur_guess][guess_x] = 0;
+                    int s = guess_x + cur_guess * 5;
+                    font_sprite(s, 0, 100 + guess_x * 24, y + cur_guess * 24, 0);
+                }
+            }
 
-            add_letter_to_guess(ch);
+            if ((joystate & BUTTON_C) && !(oldstate & BUTTON_C)) {
+                char ch = kbRows[cursor_row][cursor_col];
+                add_letter_to_guess(ch);
+            }
+
+            if ((joystate & BUTTON_START) && !(oldstate & BUTTON_START)) {
+                enter_guess();
+            }
         }
 
         if (message_time) {
@@ -408,9 +458,15 @@ void GameScreen() {
         }
 
         draw_cursor();
-
         VDP_updateSprites(42, DMA_QUEUE);
         SYS_doVBlankProcess();
+
+        random();
+
+        if(next_screen != SCREEN_GAME) {
+            VDP_fadeOutAll(30, 0);
+            return;
+        }
     }
 }
 
@@ -419,6 +475,7 @@ int main() {
 
     VDP_init();
     JOY_init();
+    sound_init();
 
     enable_ints;
 
@@ -428,13 +485,15 @@ int main() {
     // green tile: #538e4e
     // orange tile: #b59f3a
 
+    VDP_setPlaneSize(64, 64, TRUE);
+
 //	vdp_color(0, 0x080);
     VDP_setScrollingMode(HSCROLL_TILE, VSCROLL_PLANE);
 
-    VDP_linkSprites(0, 50);
+
 
     for (int i = 0; i < 32; i++) hscroll[i] = 0;
-    VDP_setHorizontalScrollTile(VDP_PLAN_A, 0, hscroll, 32, DMA_QUEUE);
+    VDP_setHorizontalScrollTile(BG_A, 0, hscroll, 32, DMA_QUEUE);
 //
 //    VDP_setPaletteColor(0, RGB24_TO_VDPCOLOR(0x121213));
 //    VDP_setPaletteColor(1, RGB24_TO_VDPCOLOR(0));
@@ -452,7 +511,22 @@ int main() {
 
     graphics_load();
 
-    TitleScreen();
+    while(1) {
+        switch(next_screen) {
+            case SCREEN_TITLE:
+                TitleScreen();
+                break;
+            case SCREEN_GAME:
+                GameScreen();
+                break;
+            case SCREEN_INSTRUCTIONS:
+                InstructionsScreen();
+                break;
+            case SCREEN_NEWGAME:
+                next_screen = SCREEN_GAME;
+                break;
+        }
+    }
 
 }
 

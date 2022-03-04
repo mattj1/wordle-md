@@ -26,7 +26,9 @@ void update_guess_animation() {
         VDP_setSprite(tileSprite, 100 + letter * 24 - 4, y + row * 24 - 4, SPRITE_SIZE(3,3), TILE_ATTR_FULL(0, 0, 0, 0, 0));
 
         // remove tile
-        VDP_fillTileMapRect(VDP_PLAN_A, 0, 12 + letter * 3, row * 3, 3, 3);
+        VDP_fillTileMapRect(BG_A, 0, 12 + letter * 3, row * 3, 3, 3);
+
+        sound_play_flip();
     }
 
     if(step == 1) {
@@ -71,7 +73,4 @@ void animate_guess(int guess_row) {
     frame = 0;
     is_animating_guess = 1;
     delay = 0;
-
-    VDP_setSpriteSize(tileSprite, SPRITE_SIZE(3,3));
-    VDP_setSpriteAttribut(tileSprite, TILE_ATTR(0, 0, 0, 0));
 }
