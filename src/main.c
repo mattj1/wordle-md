@@ -332,7 +332,11 @@ void GameScreen() {
 
     clear_screen();
 
-    int cursor_x = 0, y = 4;
+    VDP_setScrollingMode(HSCROLL_TILE, VSCROLL_PLANE);
+    for (int i = 0; i < 32; i++) hscroll[i] = 0;
+    VDP_setHorizontalScrollTile(BG_A, 0, hscroll, 32, DMA_QUEUE);
+
+    int y = 4;
 
     u16 joystate = ~0, oldstate;
 
@@ -488,12 +492,7 @@ int main() {
     VDP_setPlaneSize(64, 64, TRUE);
 
 //	vdp_color(0, 0x080);
-    VDP_setScrollingMode(HSCROLL_TILE, VSCROLL_PLANE);
 
-
-
-    for (int i = 0; i < 32; i++) hscroll[i] = 0;
-    VDP_setHorizontalScrollTile(BG_A, 0, hscroll, 32, DMA_QUEUE);
 //
 //    VDP_setPaletteColor(0, RGB24_TO_VDPCOLOR(0x121213));
 //    VDP_setPaletteColor(1, RGB24_TO_VDPCOLOR(0));
