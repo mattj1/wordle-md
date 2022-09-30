@@ -69,31 +69,44 @@ int is_valid_guess(const char *g) {
 }
 
 int check_guess() {
-    u8 checked = 0;
+    u8 checked = 0; // Flag bit as one means this can't be used to set a letter orange
 
     const char *word = &WORDS[current_word * 5];
     const char *g = &guess[cur_guess][0];
 
+    memset(check_result, 0, sizeof(check_result));
+
     // Check for correct letters
     for (int i = 0; i < 5; i++) {
-        check_result[i] = 0;
         if (g[i] == word[i]) {
             check_result[i] = 2;
             checked |= (1 << i);
         }
     }
 
+    // R E F E R  g[i]
+
+    // F E R R Y  word[j]
+    // S E R V E  g[i]
+    // 0 1 1 0 0
+
     if(checked == 0x1f) {
         return 1;
     }
 
     for (int i = 0; i < 5; i++) {
+
+        char guess_letter = g[i];
+
+        if (guess_letter == word[i])
+            continue;
+
         // check if letter is elsewhere in the word (unchecked)
         for (int j = 0; j < 5; j++) {
             if (checked & (1 << j))
                 continue;
 
-            if (word[j] == g[i]) {
+            if (word[j] == guess_letter) {
                 check_result[i] = 1;
                 checked |= (1 << j);
                 break;
@@ -180,6 +193,7 @@ void enter_guess() {
     if(cur_guess == 0) {
         // Pick the word at this point, so it's likely to be very random
         current_word = WORDLE_WORDS[random() % 2315];
+//        current_word = 18575 / 5;
     }
 
     if(check_guess()) {
@@ -288,8 +302,6 @@ void cursor_right() {
 void GameMenu() {
     if(is_animating_invalid_word || is_animating_gameover || is_animating_guess)
         return;
-
-    // TODO: remove cursor
 
     bottom_out();
 

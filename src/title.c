@@ -11,7 +11,7 @@ void TitleScreen() {
     font_print_string_to_tilemap(11, 6, BG_B, "WORDLE MD");
 
     VDP_drawTextBG(BG_A, "github.com/mattj1", 20, 25);
-    VDP_drawTextBG(BG_A, "v0.1", 33, 27);
+    VDP_drawTextBG(BG_A, "v0.2", 33, 27);
     menu_init(BG_A);
     menu_add(8, 14, "Play");
     menu_add(8, 16, "Instructions");
